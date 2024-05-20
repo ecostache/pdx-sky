@@ -2,7 +2,7 @@ import { IBM_Plex_Sans } from 'next/font/google';
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
-  weight: ['400', '700'],
+  weight: ['100', '200', '300', '400', '500', '600', '700'],
   subsets: ['latin'],
 });
 
@@ -14,7 +14,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={plexSans.className}>{children}</body>
+      <body className={`${plexSans.className} antialiased hover:subpixel-antialiased`}>{children}</body>
     </html>
   );
 }
