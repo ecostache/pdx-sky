@@ -28,9 +28,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 py-10">
       <div className="container mx-auto px-4">
-        <h1 className="text-3xl font-bold text-center mb-8">Average Color of the Sky</h1>
-        <h2 className="text-xl font-regular text-center mb-8">in Downtown Portland Oregon</h2>
-        <h3 className="text-lg font-regular text-center mb-8">by Emanuel Costache</h3>
+        <h1 className="text-xl font-bold text-center mb-8">Average Color of the Portland Sky</h1>
+        <h2 className="text-base font-regular text-center mb-8">by Emanuel Costache</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-0">
           {rgbData.map((item, index) => (
             <div
