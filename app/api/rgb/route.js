@@ -12,28 +12,29 @@ const extractAverageRGB = async (url) => {
   const response = await fetch(url);
   const buffer = await response.buffer();
   const img = await loadImage(buffer);
-  const canvas = createCanvas(1200, 400);
+  const canvas = createCanvas(200, 200);
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, 1200, 400);
+  ctx.drawImage(img, 0, 0, 200, 200);
 
-  const imageData = ctx.getImageData(0, 0, 1200, 400);
-  const data = imageData.data;
+  const imageData = ctx.getImageData(0, 0, 200, 200);
+  const data = new Uint32Array(imageData.data.buffer);
 
   let r = 0, g = 0, b = 0;
-  const pixelCount = data.length / 4;
 
-  for (let i = 0; i < data.length; i += 4) {
-    r += data[i];
-    g += data[i + 1];
-    b += data[i + 2];
+  for (let i = 0; i < data.length; i++) {
+    r += (data[i] & 0xFF);
+    g += (data[i] >> 8) & 0xFF;
+    b += (data[i] >> 16) & 0xFF;
   }
 
+  const pixelCount = data.length;
   r = Math.round(r / pixelCount);
   g = Math.round(g / pixelCount);
   b = Math.round(b / pixelCount);
 
   return [r, g, b];
 };
+
 
 /**
  * Saves the average RGB data to the KV store.
