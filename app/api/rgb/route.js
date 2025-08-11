@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import fetch from 'node-fetch';
 import { createCanvas, loadImage } from 'canvas';
-import { kv } from '@vercel/kv';
+import fs from 'fs/promises';
+import path from 'path';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
  * Extracts the average RGB values from an image URL.
@@ -10,24 +12,24 @@ import { kv } from '@vercel/kv';
  */
 const extractAverageRGB = async (url) => {
   const response = await fetch(url);
-  const buffer = await response.buffer();
-  const img = await loadImage(buffer);
+  const arrayBuffer = await response.arrayBuffer();
+  const img = await loadImage(Buffer.from(arrayBuffer));
   const canvas = createCanvas(200, 200);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, 200, 200);
 
   const imageData = ctx.getImageData(0, 0, 200, 200);
-  const data = new Uint32Array(imageData.data.buffer);
+  const data = imageData.data; // Uint8ClampedArray in RGBA order
 
   let r = 0, g = 0, b = 0;
 
-  for (let i = 0; i < data.length; i++) {
-    r += (data[i] & 0xFF);
-    g += (data[i] >> 8) & 0xFF;
-    b += (data[i] >> 16) & 0xFF;
+  for (let i = 0; i < data.length; i += 4) {
+    r += data[i];
+    g += data[i + 1];
+    b += data[i + 2];
   }
 
-  const pixelCount = data.length;
+  const pixelCount = data.length / 4;
   r = Math.round(r / pixelCount);
   g = Math.round(g / pixelCount);
   b = Math.round(b / pixelCount);
@@ -36,24 +38,48 @@ const extractAverageRGB = async (url) => {
 };
 
 
-/**
- * Saves the average RGB data to the KV store.
- * @param {number[]} avgRGB - The average RGB values.
- */
-const saveRGBToKV = async (avgRGB) => {
-  const timestamp = new Date().toISOString();
-  const rgbData = (await kv.get('rgbData')) || [];
-  
-  rgbData.push({
-    timestamp,
-    rgb: avgRGB
-  });
+// File-based storage (JSON Lines)
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'rgb.jsonl');
 
-  await kv.set('rgbData', rgbData);
+/**
+ * Appends an RGB record to the JSON Lines file.
+ */
+const appendRGBToFile = async (avgRGB) => {
+  const timestamp = new Date().toISOString();
+  const record = { timestamp, rgb: avgRGB };
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.appendFile(DATA_FILE, `${JSON.stringify(record)}\n`, 'utf8');
 };
 
 /**
- * Handles the GET request to fetch stored RGB data.
+ * Reads all RGB records from the JSON Lines file.
+ */
+const readAllRGBFromFile = async () => {
+  try {
+    const content = await fs.readFile(DATA_FILE, 'utf8');
+    const lines = content.split('\n');
+    const records = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        records.push(JSON.parse(trimmed));
+      } catch (_e) {
+        // Ignore partially written or corrupt lines
+      }
+    }
+    return records;
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+};
+
+/**
+ * Handles the GET request to fetch stored RGB data from the local file.
  * @param {Request} request - The incoming request.
  * @returns {Promise<Response>} - A response containing the stored RGB data.
  */
@@ -65,11 +91,11 @@ export async function GET(request) {
     if (isCronJob) {
       const imageUrl = 'https://portlandweather.com/assets/images/cameras/PortlandSpiritLiveCam.jpeg';
       const avgRGB = await extractAverageRGB(imageUrl);
-      await saveRGBToKV(avgRGB);
+      await appendRGBToFile(avgRGB);
       return NextResponse.json({ success: true });
     }
 
-    const rgbData = (await kv.get('rgbData')) || [];
+    const rgbData = await readAllRGBFromFile();
     return NextResponse.json(rgbData);
   } catch (error) {
     console.error('Error in GET /api/rgb:', error);
@@ -78,14 +104,14 @@ export async function GET(request) {
 }
 
 /**
- * Handles the POST request to extract RGB data from an image and save it to the KV store.
+ * Handles the POST request to extract RGB data from an image and append it to the local file.
  * @returns {Promise<Response>} - A response indicating success or failure.
  */
 export async function POST() {
   try {
     const imageUrl = 'https://portlandweather.com/assets/images/cameras/PortlandSpiritLiveCam.jpeg';
     const avgRGB = await extractAverageRGB(imageUrl);
-    await saveRGBToKV(avgRGB);
+    await appendRGBToFile(avgRGB);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in POST /api/rgb:', error);

@@ -15,7 +15,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${plexSans.className} antialiased`}>{children}</body>
+      <body className={`${plexSans.className} antialiased`}>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
